@@ -16,9 +16,9 @@ class HotelReservationWizard(models.TransientModel):
             "model": "hotel.reservation",
             "form": self.read(["date_start", "date_end"])[0],
         }
-        return self.env.ref(
-            "hotel_reservation.hotel_roomres_details"
-        ).report_action(self, data=data)
+        return self.env.ref("hotel_reservation.hotel_roomres_details").report_action(
+            self, data=data
+        )
 
     def report_checkin_detail(self):
         data = {
@@ -26,9 +26,9 @@ class HotelReservationWizard(models.TransientModel):
             "model": "hotel.reservation",
             "form": self.read(["date_start", "date_end"])[0],
         }
-        return self.env.ref(
-            "hotel_reservation.hotel_checkin_details"
-        ).report_action(self, data=data)
+        return self.env.ref("hotel_reservation.hotel_checkin_details").report_action(
+            self, data=data
+        )
 
     def report_checkout_detail(self):
         data = {
@@ -36,9 +36,9 @@ class HotelReservationWizard(models.TransientModel):
             "model": "hotel.reservation",
             "form": self.read(["date_start", "date_end"])[0],
         }
-        return self.env.ref(
-            "hotel_reservation.hotel_checkout_details"
-        ).report_action(self, data=data)
+        return self.env.ref("hotel_reservation.hotel_checkout_details").report_action(
+            self, data=data
+        )
 
     def report_maxroom_detail(self):
         data = {
@@ -46,9 +46,9 @@ class HotelReservationWizard(models.TransientModel):
             "model": "hotel.reservation",
             "form": self.read(["date_start", "date_end"])[0],
         }
-        return self.env.ref(
-            "hotel_reservation.hotel_maxroom_details"
-        ).report_action(self, data=data)
+        return self.env.ref("hotel_reservation.hotel_maxroom_details").report_action(
+            self, data=data
+        )
 
 
 class MakeFolioWizard(models.TransientModel):
@@ -57,12 +57,14 @@ class MakeFolioWizard(models.TransientModel):
 
     grouped = fields.Boolean("Group the Folios")
 
-    def makeFolios(self):
-        order_obj = self.env["hotel.reservation"]
-        newinv = []
-        for order in order_obj.browse(self.env.context.get("active_ids", [])):
-            for folio in order.folio_id:
-                newinv.append(folio.id)
+    def make_folios(self):
+        reservation_obj = self.env["hotel.reservation"]
+        newinv = [
+            order.id
+            for order in reservation_obj.browse(
+                self.env.context.get("active_ids", [])
+            ).mapped("folio_id")
+        ]
         return {
             "domain": "[('id','in', [" + ",".join(map(str, newinv)) + "])]",
             "name": "Folios",
