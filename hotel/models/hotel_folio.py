@@ -21,6 +21,7 @@ class FolioRoomLine(models.Model):
     status = fields.Selection(related="folio_id.state", string="state")
 
 
+
 class HotelFolio(models.Model):
 
     _name = "hotel.folio"
@@ -58,9 +59,12 @@ class HotelFolio(models.Model):
         )
         return fields.Datetime.to_string(checkout_date)
 
-    name = fields.Char("Folio Number", readonly=True, index=True, default="New")
+    name = fields.Char("Folio Number",
+                        readonly=True, index=True,
+                        default="New")
     order_id = fields.Many2one(
-        "sale.order", "Order", delegate=True, required=True, ondelete="cascade"
+        "sale.order", "Order", delegate=True,
+        required=True, ondelete="cascade"
     )
     checkin_date = fields.Datetime(
         "Check In",
@@ -148,19 +152,18 @@ class HotelFolio(models.Model):
         folio_room_line_obj = self.env["folio.room.line"]
         hotel_room_obj = self.env["hotel.room"]
         for rec in folio_id:
-            if not rec:
-                for room_rec in rec.room_line_ids:
-                    room = hotel_room_obj.search(
-                        [("product_id", "=", room_rec.product_id.id)]
-                    )
-                    room.write({"isroom": False})
-                    vals = {
-                        "room_id": room.id,
-                        "check_in": rec.checkin_date,
-                        "check_out": rec.checkout_date,
-                        "folio_id": rec.id,
-                    }
-                    folio_room_line_obj.create(vals)
+            for room_rec in rec.room_line_ids:
+                room = hotel_room_obj.search(
+                    [("product_id", "=", room_rec.product_id.id)]
+                )
+                room.write({"isroom": False})
+                vals = {
+                    "room_id": room.id,
+                    "check_in": rec.checkin_date,
+                    "check_out": rec.checkout_date,
+                    "folio_id": rec.id,
+                }
+                folio_room_line_obj.create(vals)
 
     @api.model
     def create(self, vals):
@@ -258,10 +261,23 @@ class HotelFolio(models.Model):
         """
         @param self: object pointer
         """
-        if not self.order_id:
-            raise UserError(_("Order id is not available"))
-        self.invoice_ids.button_cancel()
-        return self.order_id.action_cancel()
+        for rec in self:
+            if not rec.order_id:
+                raise UserError(_("Order id is not available"))
+            for line in rec.room_line_ids:
+                if line.order_line_id:
+                    rooms = self.env["hotel.room"].search(
+                        [("product_id", "=", line.order_line_id.product_id.id)]
+                    )
+                    folio_room_lines = self.env["folio.room.line"].search(
+                        [
+                            ("folio_id", "=", line.folio_id.id),
+                            ("room_id", "in", rooms.ids),
+                        ]
+                    )
+                    rooms.write({"isroom": True, "status": "available"})
+            rec.invoice_ids.button_cancel()
+            return rec.order_id.action_cancel()
 
     def action_confirm(self):
         for order in self.order_id:
@@ -574,24 +590,6 @@ class HotelFolioLine(models.Model):
                 if additional_hours >= configured_addition_hours:
                     myduration += 1
         self.product_uom_qty = myduration
-        hotel_room_obj = self.env["hotel.room"]
-        avail_prod_ids = []
-        for room in hotel_room_obj.search([]):
-            assigned = False
-            for rm_line in room.room_line_ids:
-                if rm_line.status != "cancel":
-                    if (
-                        self.checkin_date <= rm_line.check_in <= self.checkout_date
-                    ) or (self.checkin_date <= rm_line.check_out <= self.checkout_date):
-                        assigned = True
-                    elif (
-                        rm_line.check_in <= self.checkin_date <= rm_line.check_out
-                    ) or (rm_line.check_in <= self.checkout_date <= rm_line.check_out):
-                        assigned = True
-            if not assigned:
-                avail_prod_ids.append(room.product_id.id)
-        domain = {"product_id": [("id", "in", avail_prod_ids)]}
-        return {"domain": domain}
 
     def copy_data(self, default=None):
         """
